@@ -7,6 +7,7 @@
 #define NUM_OF_UPPER_NAME 101
 #define NUM_OF_LOWER_NAME 100
 #define NUM_OF_JOCKEY 105
+#define NUM_OF_RaceCourse 10
 
 //馬のデータを格納するための構造体
 struct horseData
@@ -281,380 +282,503 @@ int main() {
         lineCount++;
     }
 
+    char RaceCourse[NUM_OF_RaceCourse][NUM_OF_RaceCourse];
+    lineCount = 0;
+
+    //RaceCourse.txtを開く
+    fp = fopen("RaceCourse.txt", "r");
+    if (fp == NULL) {
+        printf("\aファイルが開けません。\n");
+        return 0;
+    }
+
+    while (lineCount < NUM_OF_RaceCourse && fgets(RaceCourse[lineCount], sizeof(RaceCourse[lineCount]), fp) != NULL) {
+        RaceCourse[lineCount][strcspn(RaceCourse[lineCount], "\n")] = '\0';
+        lineCount++;
+    }
+
     fclose(fp);
 
-    srand(time(NULL)); //乱数を初期化
+    int raceCount = 1;
+    int bankroll; //軍資金
+    int AllRaceBetAmount = 0; //全レースの総賭け金
+    int AllRaceWinAmount = 0; //全レースの総払い戻し金
+    char raceCourse[64]; //コースの決定
+    strcpy(raceCourse, RaceCourse[rand() % NUM_OF_RaceCourse]);    
 
-    //出走頭数
-    int numOfHorse = rand() % 11 + 8; //8から18の乱数を生成
+    while(1) {
 
-    int jockeySelected[NUM_OF_JOCKEY] = {0};
-
-    //データの生成
-    struct horseData horseData[numOfHorse];
-    double totalAppLevel = 0.0;
-
-    for (int i = 0; i < numOfHorse; i++) {
-        horseData[i].number = i + 1; //馬番
-        getName(horseData[i].name, UpperNames, LowerNames); //馬名
-        horseData[i].appLevel = (double)rand() / RAND_MAX; //ランダムな支持率を生成
-        totalAppLevel += horseData[i].appLevel;
-        strcpy(horseData[i].gender, rand() % 2 == 0 ? "牡" : "牝"); //性別
-        horseData[i].age = rand() % 8 + 3; //馬齢
-        int jockeyIndex;
-        do {
-            jockeyIndex = rand() % NUM_OF_JOCKEY;
-        } while (jockeySelected[jockeyIndex]);
-        jockeySelected[jockeyIndex] = 1;
-        strcpy(horseData[i].jockey, JockeyNames[jockeyIndex]); //騎手
-    }
-
-    //支持率を正規化して合計が1になるようにする
-    for (int i = 0; i < numOfHorse; i++) {
-        horseData[i].appLevel /= totalAppLevel;
-    }
-
-    double **quinellaOdds = CalcQuinellaOdds(horseData, numOfHorse); //馬連オッズ
-
-    printRaceCard(horseData, numOfHorse); //出馬表の表示
-
-    printQuinellaOdds(quinellaOdds, numOfHorse); //馬連オッズの表示
-
-    int WinBetNumber[numOfHorse]; //賭けた単勝の馬番の配列
-    int WinBetAmount[numOfHorse]; //賭けた単勝の金額の配列
-    int PlaceBetNumber[numOfHorse]; //賭けた複勝の馬番の配列
-    int PlaceBetAmount[numOfHorse]; //賭けた複勝の金額の配列
-    int QuinellaBetNumber1[combination(numOfHorse,2)]; //賭けた馬連の1頭目の馬番の配列
-    int QuinellaBetNumber2[combination(numOfHorse,2)]; //賭けた馬連の2頭目の馬番の配列
-    int QuinellaBetAmount[combination(numOfHorse,2)]; //賭けた馬連の金額の配列
-
-    int betType; //券種
-    int totalBetAmount = 0; //総賭け金
-    int continueFlag = 1; //続けるかどうかのフラグ
-    int winCount = 0; //単勝の賭け数
-    int placeCount = 0; //複勝の賭け数
-    int quinellaCount = 0; //馬連の賭け数
-
-    do {
-    printf("式別を選択\n");
-    printf("1:単勝, 2:複勝, 3:馬連\n");
-    scanf("%d", &betType);
-    if (betType < 1 || betType > 3) {
-        printf("1から3の値を入力してください。\n");
-        continue;
-    }
-    if (betType == 1) { //単勝の場合
-        printf("馬番を1つ選択\n");
-        int betNumber; //馬番
-        int betAmount; //金額
-        printf("馬番(1~%d):", numOfHorse);
-        scanf("%d", &betNumber);
-        if (betNumber < 1 || betNumber > numOfHorse) {
-            printf("1から%dの値を入力してください。\n", numOfHorse);
-            continue;
-        }
-        WinBetNumber[winCount] = betNumber;
-        printf("金額(100円単位):");
-        scanf("%d", &betAmount);
-        if (betAmount < 100 || betAmount > __INT_MAX__ || betAmount % 100 != 0) {
-            printf("100円単位での値を入力してください。\n");
-            WinBetNumber[winCount] = 0;
-            continue;
-        }
-        totalBetAmount += betAmount;
-        WinBetAmount[winCount] = betAmount;
-        winCount++;
-    } else if (betType == 2) { //複勝の場合
-        printf("馬番を1つ選択\n");
-        int betNumber; //馬番
-        printf("馬番(1~%d):", numOfHorse);
-        scanf("%d", &betNumber);
-        if (betNumber < 1 || betNumber > numOfHorse) {
-            printf("1から%dの値を入力してください。\n", numOfHorse);
-            continue;
-        }
-        PlaceBetNumber[placeCount] = betNumber;
-        printf("金額(100円単位):");
-        int betAmount; //金額
-        scanf("%d", &betAmount);
-        if (betAmount < 100 || betAmount > __INT_MAX__ || betAmount % 100 != 0) {
-            printf("100円単位での値を入力してください。\n");
-            PlaceBetNumber[placeCount] = 0;
-            continue;
-        }
-        totalBetAmount += betAmount;
-        PlaceBetAmount[placeCount] = betAmount;
-        placeCount++;
-    } else if (betType == 3) { //馬連の場合
-        int type = 0; //通常、ながし、ボックスの選択
-        printf("投票方法\n");
-        while(1) {
-            printf("1:通常, 2:ながし, 3:ボックス\n");
-            scanf("%d", &type);
-            if (type < 1 || type > 3) {
-                printf("1から3の値を入力してください。\n");
+        if (raceCount == 1) {
+            printf("軍資金を入力してください。(100円単位)\n");
+            scanf("%d", &bankroll);
+            if (bankroll < 100 || bankroll > __INT_MAX__ || bankroll % 100 != 0) {
+                printf("100円単位での値を入力してください。\n");
                 continue;
             }
-            break;
         }
 
-        if (type == 1) { //通常の場合
-            printf("馬番を2つ選択\n");
-            int betNumber1, betNumber2; //馬番
-            while(1) {
-                printf("一頭目(1~%d):", numOfHorse);
-                scanf("%d", &betNumber1);
-                if (betNumber1 < 1 || betNumber1 > numOfHorse) {
-                    printf("1から%dの値を入力してください。\n", numOfHorse);
-                    continue;
-                }
-                break;
-            }
-            while(1) {
-                printf("二頭目(1~%d):", numOfHorse);
-                scanf("%d", &betNumber2);
-                if (betNumber2 < 1 || betNumber2 > numOfHorse) {
-                    printf("1から%dの値を入力してください。\n", numOfHorse);
-                    continue;
-                }
-                if (betNumber1 == betNumber2) {
-                    printf("同じ馬を選択することはできません。\n");
-                    continue;
-                }
-                break;
-            }
-            if (betNumber1 < betNumber2) {
-                QuinellaBetNumber1[quinellaCount] = betNumber1;
-                QuinellaBetNumber2[quinellaCount] = betNumber2;
-            } else {
-                QuinellaBetNumber1[quinellaCount] = betNumber2;
-                QuinellaBetNumber2[quinellaCount] = betNumber1;
-            }
+        srand(time(NULL)); //乱数を初期化
+
+        //出走頭数
+        int numOfHorse = rand() % 11 + 8; //8から18の乱数を生成
+
+        int jockeySelected[NUM_OF_JOCKEY] = {0};
+
+        //データの生成
+        struct horseData horseData[numOfHorse];
+        double totalAppLevel = 0.0;
+
+        for (int i = 0; i < numOfHorse; i++) {
+            horseData[i].number = i + 1; //馬番
+            getName(horseData[i].name, UpperNames, LowerNames); //馬名
+            horseData[i].appLevel = (double)rand() / RAND_MAX; //ランダムな支持率を生成
+            totalAppLevel += horseData[i].appLevel;
+            strcpy(horseData[i].gender, rand() % 2 == 0 ? "牡" : "牝"); //性別
+            horseData[i].age = rand() % 8 + 3; //馬齢
+            int jockeyIndex;
+            do {
+                jockeyIndex = rand() % NUM_OF_JOCKEY;
+            } while (jockeySelected[jockeyIndex]);
+            jockeySelected[jockeyIndex] = 1;
+            strcpy(horseData[i].jockey, JockeyNames[jockeyIndex]); //騎手
+        }
+
+        for (int i = 0; i < numOfHorse; i++) {
+            horseData[i].appLevel /= totalAppLevel;
+        }
+
+        double **quinellaOdds = CalcQuinellaOdds(horseData, numOfHorse); //馬連オッズ
+
+        printf("%2s 第%dR\n", raceCourse, raceCount);
+        printRaceCard(horseData, numOfHorse); //出馬表の表示
+
+        printQuinellaOdds(quinellaOdds, numOfHorse); //馬連オッズの表示
+
+        int WinBetNumber[numOfHorse]; //賭けた単勝の馬番の配列
+        int WinBetAmount[numOfHorse]; //賭けた単勝の金額の配列
+        int PlaceBetNumber[numOfHorse]; //賭けた複勝の馬番の配列
+        int PlaceBetAmount[numOfHorse]; //賭けた複勝の金額の配列
+        int QuinellaBetNumber1[combination(numOfHorse,2)]; //賭けた馬連の1頭目の馬番の配列
+        int QuinellaBetNumber2[combination(numOfHorse,2)]; //賭けた馬連の2頭目の馬番の配列
+        int QuinellaBetAmount[combination(numOfHorse,2)]; //賭けた馬連の金額の配列
+
+        int betType; //券種
+        int totalBetAmount = 0; //レース内での総賭け金
+        int continueFlag = 1; //続けるかどうかのフラグ
+        int winCount = 0; //単勝の賭け数
+        int placeCount = 0; //複勝の賭け数
+        int quinellaCount = 0; //馬連の賭け数
+
+        do {
+        printf("式別を選択\n");
+        printf("1:単勝, 2:複勝, 3:馬連\n");
+        scanf("%d", &betType);
+        if (betType < 1 || betType > 3) {
+            printf("1から3の値を入力してください。\n");
+            continue;
+        }
+        if (betType == 1) { //単勝の場合
+            int betNumber; //馬番
             int betAmount; //金額
+            while(1) {
+                printf("馬番を1つ選択\n");
+                printf("馬番(1~%d):", numOfHorse);
+                scanf("%d", &betNumber);
+                if (betNumber < 1 || betNumber > numOfHorse) {
+                    printf("1から%dの値を入力してください。\n", numOfHorse);
+                    continue;
+                }
+                break;
+            }
             while(1) {
                 printf("金額(100円単位):");
                 scanf("%d", &betAmount);
                 if (betAmount < 100 || betAmount > __INT_MAX__ || betAmount % 100 != 0) {
-                    printf("100円単位での値を入力してください。\n");
-                    QuinellaBetNumber1[quinellaCount] = 0;
-                    QuinellaBetNumber2[quinellaCount] = 0;
+                    printf("100円単位での値を入力してください。\n");;
+                    continue;
+                }
+                if (betAmount > bankroll) {
+                    printf("軍資金が足りません。\n");
                     continue;
                 }
                 break;
             }
             totalBetAmount += betAmount;
-            QuinellaBetAmount[quinellaCount] = betAmount;
-            quinellaCount++;
-        } else if (type == 2) { //ながしの場合
-            printf("軸馬を1つ選択\n");
-            int favoriteNumber; //軸馬の馬番
-            printf("軸馬(1~%d):", numOfHorse);
-            scanf("%d", &favoriteNumber);
-            if (favoriteNumber < 1 || favoriteNumber > numOfHorse) {
-                printf("1から%dの値を入力してください。\n", numOfHorse);
-                continue;
-            }
-            int longShotCount = 0; //相手の数
-            printf("相手を1頭ずつ入力(終わる場合は0を入力)\n");
+            AllRaceBetAmount += betAmount;
+            bankroll -= betAmount;
+            WinBetNumber[winCount] = betNumber;
+            WinBetAmount[winCount] = betAmount;
+            winCount++;
+        } else if (betType == 2) { //複勝の場合
+            int betNumber; //馬番
+            int betAmount; //金額
             while(1) {
-                int longShotNumber; //相手の馬番
-                printf("相手(1~%d):", numOfHorse);
-                scanf("%d", &longShotNumber);
-                if (longShotCount == 0 & longShotNumber == 0) {
-                    printf("1頭以上の馬を選択してください。\n");
-                    continue;
-                }
-                if (longShotNumber < 0 || longShotNumber > numOfHorse) {
+                printf("馬番を1つ選択\n");
+                printf("馬番(1~%d):", numOfHorse);
+                scanf("%d", &betNumber);
+                if (betNumber < 1 || betNumber > numOfHorse) {
                     printf("1から%dの値を入力してください。\n", numOfHorse);
                     continue;
                 }
-                if (favoriteNumber == longShotNumber) {
-                    printf("同じ馬を選択することはできません。\n");
-                    continue;
-                }
-                if (longShotNumber == 0) {
-                    break;
-                }
-                if (favoriteNumber < longShotNumber) {
-                    QuinellaBetNumber1[quinellaCount] = favoriteNumber;
-                    QuinellaBetNumber2[quinellaCount] = longShotNumber;
-                } else {
-                    QuinellaBetNumber1[quinellaCount] = longShotNumber;
-                    QuinellaBetNumber2[quinellaCount] = favoriteNumber;
-                }
-                longShotCount++;
-                quinellaCount++;
+                break;
             }
-            printf("金額(100円単位):");
-            int betAmount; //金額
             while(1) {
+                printf("金額(100円単位):");
                 scanf("%d", &betAmount);
                 if (betAmount < 100 || betAmount > __INT_MAX__ || betAmount % 100 != 0) {
                     printf("100円単位での値を入力してください。\n");
                     continue;
                 }
-                break;
-            }
-            for (int i = 0; i < longShotCount; i++) {
-                totalBetAmount += betAmount;
-                QuinellaBetAmount[quinellaCount - longShotCount + i] = betAmount;
-            }
-        } else if (type == 3) { //ボックスの場合
-            printf("馬番を1つずつ入力(終わる場合は0を入力)\n");
-            int boxNumber[numOfHorse + 1]; //ボックスの馬番
-            int number;
-            int boxCount = 0; //選ばれた馬の数
-            while(1) {
-                printf("馬番(1~%d):", numOfHorse);
-                scanf("%d", &number);
-                if ((boxCount == 0 || boxCount == 1) & number == 0) {
-                    printf("2頭以上の馬を選択してください。\n");
+                if (betAmount > bankroll) {
+                    printf("軍資金が足りません。\n");
                     continue;
                 }
-                if (number < 0 || number > numOfHorse) {
+                break;
+            }
+            AllRaceBetAmount += betAmount;
+            totalBetAmount += betAmount;
+            bankroll -= betAmount;
+            PlaceBetNumber[placeCount] = betNumber;
+            PlaceBetAmount[placeCount] = betAmount;
+            placeCount++;
+        } else if (betType == 3) { //馬連の場合
+            int type = 0; //通常、ながし、ボックスの選択
+            printf("投票方法\n");
+            while(1) {
+                printf("1:通常, 2:ながし, 3:ボックス\n");
+                scanf("%d", &type);
+                if (type < 1 || type > 3) {
+                    printf("1から3の値を入力してください。\n");
+                    continue;
+                }
+                break;
+            }
+
+            if (type == 1) { //通常の場合
+                printf("馬番を2つ選択\n");
+                int betNumber1, betNumber2; //馬番
+                while(1) {
+                    printf("一頭目(1~%d):", numOfHorse);
+                    scanf("%d", &betNumber1);
+                    if (betNumber1 < 1 || betNumber1 > numOfHorse) {
+                        printf("1から%dの値を入力してください。\n", numOfHorse);
+                        continue;
+                    }
+                    break;
+                }
+                while(1) {
+                    printf("二頭目(1~%d):", numOfHorse);
+                    scanf("%d", &betNumber2);
+                    if (betNumber2 < 1 || betNumber2 > numOfHorse) {
+                        printf("1から%dの値を入力してください。\n", numOfHorse);
+                        continue;
+                    }
+                    if (betNumber1 == betNumber2) {
+                        printf("同じ馬を選択することはできません。\n");
+                        continue;
+                    }
+                    break;
+                }
+                if (betNumber1 < betNumber2) {
+                    QuinellaBetNumber1[quinellaCount] = betNumber1;
+                    QuinellaBetNumber2[quinellaCount] = betNumber2;
+                } else {
+                    QuinellaBetNumber1[quinellaCount] = betNumber2;
+                    QuinellaBetNumber2[quinellaCount] = betNumber1;
+                }
+                int betAmount; //金額
+                while(1) {
+                    printf("金額(100円単位):");
+                    scanf("%d", &betAmount);
+                    if (betAmount < 100 || betAmount > __INT_MAX__ || betAmount % 100 != 0) {
+                        printf("100円単位での値を入力してください。\n");
+                        continue;
+                    }
+                    if (betAmount > bankroll) {
+                        printf("軍資金が足りません。\n");
+                        continue;
+                    }
+                    break;
+                }
+                AllRaceBetAmount += betAmount;
+                totalBetAmount += betAmount;
+                bankroll -= betAmount;
+                QuinellaBetAmount[quinellaCount] = betAmount;
+                quinellaCount++;
+            } else if (type == 2) { //ながしの場合
+                printf("軸馬を1つ選択\n");
+                int favoriteNumber; //軸馬の馬番
+                printf("軸馬(1~%d):", numOfHorse);
+                scanf("%d", &favoriteNumber);
+                if (favoriteNumber < 1 || favoriteNumber > numOfHorse) {
                     printf("1から%dの値を入力してください。\n", numOfHorse);
                     continue;
                 }
-                int duplicate = 0;
-                if (boxCount > 0) {
-                    for (int i = 0; i < boxCount; i++) {
-                        if (boxNumber[i] == number) {
-                            printf("同じ馬を選択することはできません。\n");
-                            duplicate = 1;
-                            break;
-                        }
+                int longShotCount = 0; //相手の数
+                printf("相手を1頭ずつ入力(終わる場合は0を入力)\n");
+                while(1) {
+                    int longShotNumber; //相手の馬番
+                    printf("相手(1~%d):", numOfHorse);
+                    scanf("%d", &longShotNumber);
+                    if (longShotCount == 0 & longShotNumber == 0) {
+                        printf("1頭以上の馬を選択してください。\n");
+                        continue;
                     }
-                }
-                if (duplicate == 1) {
-                    continue;
-                }
-                if (number == 0) {
-                    break;
-                }
-                boxNumber[boxCount] = number;
-                boxCount++;
-            }
-
-            sort(boxNumber, boxCount); //昇順に並べ替える
-
-            for (int i = 0; i < boxCount - 1; i++) {
-                for (int j = i + 1; j < boxCount; j++) {
-                    QuinellaBetNumber1[quinellaCount] = boxNumber[i];
-                    QuinellaBetNumber2[quinellaCount] = boxNumber[j];
+                    if (longShotNumber < 0 || longShotNumber > numOfHorse) {
+                        printf("1から%dの値を入力してください。\n", numOfHorse);
+                        continue;
+                    }
+                    if (favoriteNumber == longShotNumber) {
+                        printf("同じ馬を選択することはできません。\n");
+                        continue;
+                    }
+                    if (longShotNumber == 0) {
+                        break;
+                    }
+                    if (100 * (longShotCount + 1) > bankroll) {
+                        printf("軍資金が足りません。\n");
+                        continue;
+                    }
+                    if (favoriteNumber < longShotNumber) {
+                        QuinellaBetNumber1[quinellaCount] = favoriteNumber;
+                        QuinellaBetNumber2[quinellaCount] = longShotNumber;
+                    } else {
+                        QuinellaBetNumber1[quinellaCount] = longShotNumber;
+                        QuinellaBetNumber2[quinellaCount] = favoriteNumber;
+                    }
+                    longShotCount++;
                     quinellaCount++;
                 }
-            }
-
-            printf("金額(100円単位):");
-            int betAmount; //金額
-            while(1) {
-                scanf("%d", &betAmount);
-                if (betAmount < 100 || betAmount > __INT_MAX__ || betAmount % 100 != 0) {
-                    printf("100円単位での値を入力してください。\n");
-                    continue;
+                printf("金額(100円単位):");
+                int betAmount; //金額
+                while(1) {
+                    scanf("%d", &betAmount);
+                    if (betAmount < 100 || betAmount > __INT_MAX__ || betAmount % 100 != 0) {
+                        printf("100円単位での値を入力してください。\n");
+                        continue;
+                    }
+                    if (betAmount * longShotCount > bankroll) {
+                        printf("軍資金が足りません。\n");
+                        continue;
+                    }
+                    break;
                 }
-                break;
+                for (int i = 0; i < longShotCount; i++) {
+                    AllRaceBetAmount += betAmount;
+                    totalBetAmount += betAmount;
+                    bankroll -= betAmount;
+                    QuinellaBetAmount[quinellaCount - longShotCount + i] = betAmount;
+                }
+            } else if (type == 3) { //ボックスの場合
+                printf("馬番を1つずつ入力(終わる場合は0を入力)\n");
+                int boxNumber[numOfHorse + 1]; //ボックスの馬番
+                int number;
+                int boxCount = 0; //選ばれた馬の数
+                while(1) {
+                    printf("馬番(1~%d):", numOfHorse);
+                    scanf("%d", &number);
+                    if ((boxCount == 0 || boxCount == 1) & number == 0) {
+                        printf("2頭以上の馬を選択してください。\n");
+                        continue;
+                    }
+                    if (number < 0 || number > numOfHorse) {
+                        printf("1から%dの値を入力してください。\n", numOfHorse);
+                        continue;
+                    }
+                    int duplicate = 0;
+                    if (boxCount > 0) {
+                        for (int i = 0; i < boxCount; i++) {
+                            if (boxNumber[i] == number) {
+                                printf("同じ馬を選択することはできません。\n");
+                                duplicate = 1;
+                                break;
+                            }
+                        }
+                    }
+                    if ( (boxCount != 0) && (100 * combination(boxCount + 1, 2) > bankroll)) {
+                        printf("軍資金が足りません。\n");
+                        continue;
+                    }
+                    if (duplicate == 1) {
+                        continue;
+                    }
+                    if (number == 0) {
+                        break;
+                    }
+                    boxNumber[boxCount] = number;
+                    boxCount++;
+                }
+
+                sort(boxNumber, boxCount); //昇順に並べ替える
+
+                for (int i = 0; i < boxCount - 1; i++) {
+                    for (int j = i + 1; j < boxCount; j++) {
+                        QuinellaBetNumber1[quinellaCount] = boxNumber[i];
+                        QuinellaBetNumber2[quinellaCount] = boxNumber[j];
+                        quinellaCount++;
+                    }
+                }
+
+                printf("金額(100円単位):");
+                int betAmount; //金額
+                while(1) {
+                    scanf("%d", &betAmount);
+                    if (betAmount < 100 || betAmount > __INT_MAX__ || betAmount % 100 != 0) {
+                        printf("100円単位での値を入力してください。\n");
+                        continue;
+                    }
+                    if (betAmount * combination(boxCount, 2) > bankroll) {
+                        printf("軍資金が足りません。\n");
+                        continue;
+                    }
+                    break;
+                }
+                for (int i = 0; i < combination(boxCount, 2); i++) {
+                    AllRaceBetAmount += betAmount;
+                    totalBetAmount += betAmount;
+                    bankroll -= betAmount;
+                    QuinellaBetAmount[quinellaCount - combination(boxCount, 2) + i] = betAmount;
+                }            
             }
-            for (int i = 0; i < combination(boxCount, 2); i++) {
-                totalBetAmount += betAmount;
-                QuinellaBetAmount[quinellaCount - combination(boxCount, 2) + i] = betAmount;
-            }            
         }
-    }
-    printf("投票を続ける場合は1を入力。1以外を入力で出走します。\n");
-    scanf("%d", &continueFlag);
-    printf("\n");
-    } while (continueFlag == 1);
-
-    decideOrder(horseData, numOfHorse); //着順の決定
-
-    //結果の表示
-    printf("結果\n");
-    printf("着順  馬番  馬名                 騎手\n");
-    for (int i = 0; i < numOfHorse; i++) {
-        printf("%2d着 %4d   %-16s %-16s\n", i + 1, horseData[i].number, horseData[i].name, horseData[i].jockey);
-    }
-    printf("\n");
-
-    printf("払戻金\n");
-    printf("単勝\n");
-    double odds = floor(CalcWinOdds(&horseData[0]) * 100)/10;
-    printf("%4d:%5d円\n", horseData[0].number, (int)odds*10);
-
-
-    printf("複勝\n");
-    for (int i = 0; i < 3; i++) {
-        struct PlaceShowOdds placeShow = CalcPlaceShowOdds(horseData, &horseData[i], numOfHorse, 1);
-        double odds = floor(placeShow.odds * 100)/10;
-        printf("%4d:%5d円\n", horseData[i].number, (int)odds*10);
-    }
-
-    printf("馬連\n");
-    if (horseData[0].number < horseData[1].number) {
-        double odds = floor(quinellaOdds[horseData[0].number - 1][horseData[1].number - 1]*100)/10;
-        printf("%2d-%2d:%5d円\n", horseData[0].number, horseData[1].number, (int)odds*10);
-    } else {
-        double odds = floor(quinellaOdds[horseData[1].number - 1][horseData[0].number - 1]*100)/10;
-        printf("%d-%d:%5d円\n", horseData[1].number, horseData[0].number, (int)odds*10);
-    }
-
-    printf("\n");
-
-    //買った馬券の払い戻し
-    int totalWin = 0;
-    //単勝の払い戻し
-    if (winCount != 0) {
-        for (int i = 0; i < winCount; i++) {
-            if (WinBetNumber[i] == horseData[0].number) {
-                double odds = floor(CalcWinOdds(&horseData[0]) * 100)/10;
-                int win = ((int)odds*10)*(WinBetAmount[i]/100);
-                totalWin += win;
-                printf("単勝的中:%5d円\n", win);
+            if (bankroll < 100) {
+                printf("軍資金が100円未満になったので出走します。\n");
+                continueFlag = 0;
+                printf("\n");
+            } else {
+                printf("投票を続ける場合は1を入力。1以外を入力で出走します。\n");
+                printf("残りの軍資金:%d円\n", bankroll);
+                scanf("%d", &continueFlag);
+                printf("\n");
             }
-        }
-    }
+        } while (continueFlag == 1);
 
-    //複勝の払い戻し
-    if (placeCount != 0) {
-        for (int i = 0; i < placeCount; i++) {
-            for (int j = 0; j < 3; j++) {
-                if (PlaceBetNumber[i] == horseData[j].number) {
-                    struct PlaceShowOdds placeShow = CalcPlaceShowOdds(horseData, &horseData[j], numOfHorse, 1);
-                    double odds = floor(placeShow.odds * 100)/10;
-                    int win = ((int)odds*10)*(PlaceBetAmount[i]/100);
+        decideOrder(horseData, numOfHorse); //着順の決定
+
+        //結果の表示
+        printf("結果\n");
+        printf("着順  馬番  馬名                 騎手\n");
+        for (int i = 0; i < numOfHorse; i++) {
+            printf("%2d着 %4d   %-16s %-16s\n", i + 1, horseData[i].number, horseData[i].name, horseData[i].jockey);
+        }
+        printf("\n");
+
+        printf("払戻金\n");
+        printf("単勝\n");
+        double odds = floor(CalcWinOdds(&horseData[0]) * 100)/10;
+        printf("%4d:%5d円\n", horseData[0].number, (int)odds*10);
+
+        printf("複勝\n");
+        for (int i = 0; i < 3; i++) {
+            struct PlaceShowOdds placeShow = CalcPlaceShowOdds(horseData, &horseData[i], numOfHorse, 1);
+            double odds = floor(placeShow.odds * 100)/10;
+            printf("%4d:%5d円\n", horseData[i].number, (int)odds*10);
+        }
+
+        printf("馬連\n");
+        if (horseData[0].number < horseData[1].number) {
+            double odds = floor(quinellaOdds[horseData[0].number - 1][horseData[1].number - 1]*100)/10;
+            printf("%2d-%2d:%5d円\n", horseData[0].number, horseData[1].number, (int)odds*10);
+        } else {
+            double odds = floor(quinellaOdds[horseData[1].number - 1][horseData[0].number - 1]*100)/10;
+            printf("%d-%d:%5d円\n", horseData[1].number, horseData[0].number, (int)odds*10);
+        }
+
+        printf("\n");
+
+        //買った馬券の払い戻し
+        int totalWin = 0;
+        //単勝の払い戻し
+        if (winCount != 0) {
+            for (int i = 0; i < winCount; i++) {
+                if (WinBetNumber[i] == horseData[0].number) {
+                    double odds = floor(CalcWinOdds(&horseData[0]) * 100)/10;
+                    int win = ((int)odds*10)*(WinBetAmount[i]/100);
                     totalWin += win;
-                    printf("複勝的中:%5d円\n", win);
+                    AllRaceWinAmount += win;
+                    bankroll += win;
+                    printf("単勝的中:%5d円\n", win);
                 }
             }
         }
-    }
 
-    //馬連の払い戻し
-    if (quinellaCount != 0) {
-        for (int i = 0; i < quinellaCount; i++) {
-            if (QuinellaBetNumber1[i] == horseData[0].number & QuinellaBetNumber2[i] == horseData[1].number) {
-                double odds = floor(quinellaOdds[horseData[0].number - 1][horseData[1].number - 1] * 100)/10;
-                int win = ((int)odds*10)*(QuinellaBetAmount[i]/100);
-                totalWin += win;
-                printf("馬連的中:%5d円\n", win);
-            } else if (QuinellaBetNumber1[i] == horseData[1].number & QuinellaBetNumber2[i] == horseData[0].number) {
-                double odds = floor(quinellaOdds[horseData[1].number - 1][horseData[0].number - 1] * 100)/10;
-                int win = ((int)odds*10)*(QuinellaBetAmount[i]/100);
-                totalWin += win;
-                printf("馬連的中:%5d円\n", win);
+        //複勝の払い戻し
+        if (placeCount != 0) {
+            for (int i = 0; i < placeCount; i++) {
+                for (int j = 0; j < 3; j++) {
+                    if (PlaceBetNumber[i] == horseData[j].number) {
+                        struct PlaceShowOdds placeShow = CalcPlaceShowOdds(horseData, &horseData[j], numOfHorse, 1);
+                        double odds = floor(placeShow.odds * 100)/10;
+                        int win = ((int)odds*10)*(PlaceBetAmount[i]/100);
+                        totalWin += win;
+                        AllRaceWinAmount += win;
+                        bankroll += win;
+                        printf("複勝的中:%5d円\n", win);
+                    }
+                }
             }
         }
-    }
-    
-    printf("総投資額:%5d円\n", totalBetAmount);
-    printf("合計払戻金:%5d円\n", totalWin);
-    printf("回収率:%5.1f%%\n", (double)totalWin / totalBetAmount * 100);
 
-    // メモリの解放
-    for (int i = 0; i < numOfHorse; i++) {
-        free(quinellaOdds[i]);
+        //馬連の払い戻し
+        if (quinellaCount != 0) {
+            for (int i = 0; i < quinellaCount; i++) {
+                if (QuinellaBetNumber1[i] == horseData[0].number & QuinellaBetNumber2[i] == horseData[1].number) {
+                    double odds = floor(quinellaOdds[horseData[0].number - 1][horseData[1].number - 1] * 100)/10;
+                    int win = ((int)odds*10)*(QuinellaBetAmount[i]/100);
+                    totalWin += win;
+                    AllRaceWinAmount += win;
+                    bankroll += win;
+                    printf("馬連的中:%5d円\n", win);
+                } else if (QuinellaBetNumber1[i] == horseData[1].number & QuinellaBetNumber2[i] == horseData[0].number) {
+                    double odds = floor(quinellaOdds[horseData[1].number - 1][horseData[0].number - 1] * 100)/10;
+                    int win = ((int)odds*10)*(QuinellaBetAmount[i]/100);
+                    totalWin += win;
+                    AllRaceWinAmount += win;
+                    bankroll += win;
+                    printf("馬連的中:%5d円\n", win);
+                }
+            }
+        }
+        
+        printf("本レース総投資額:%5d円\n", totalBetAmount);
+        printf("本レース合計払戻金:%5d円\n", totalWin);
+        printf("本レースの回収率:%5.1f%%\n", (double)totalWin / totalBetAmount * 100);
+        printf("\n");
+        printf("ここまでの総投資額:%5d円\n", AllRaceBetAmount);
+        printf("ここまでの合計払戻金:%5d円\n", AllRaceWinAmount);
+        printf("ここまでの回収率:%5.1f%%\n", (double)AllRaceWinAmount / AllRaceBetAmount * 100);
+        printf("\n");
+        printf("残りの軍資金:%d円\n", bankroll);
+
+        // メモリの解放
+        for (int i = 0; i < numOfHorse; i++) {
+            free(quinellaOdds[i]);
+        }
+        free(quinellaOdds);
+
+        if (bankroll < 100) {
+            printf("軍資金が100円未満になりました。\n");
+            break;
+        }
+
+        if (raceCount == 12) {
+            break;
+        }
+
+        int continueFlag2 = 1;
+        printf("続ける場合は1を入力。1以外を入力で終了します。\n");
+        scanf("%d", &continueFlag2);
+        if (continueFlag2 != 1) {
+            break;
+        }
+        raceCount++;
     }
-    free(quinellaOdds);
+
+    printf("\n");
+    printf("最終結果\n");
+    printf("総投資額:%5d円\n", AllRaceBetAmount);
+    printf("合計払戻金:%5d円\n", AllRaceWinAmount);
+    printf("回収率:%5.1f%%\n", (double)AllRaceWinAmount / AllRaceBetAmount * 100);
 
     return 0;
 }
